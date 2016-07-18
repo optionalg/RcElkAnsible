@@ -1,0 +1,131 @@
+---
+  - name: Provision an EC2 Instance
+    hosts: local
+    connection: local
+    gather_facts: False
+    tags: provisioning
+    vars:
+      instance_type: t2.micro
+      security_group: webserver
+      image: ami-6869aa05
+      region: us-east-1
+      keypair: LDAP-TEST
+      aws_access_key: AKIAIQLCGEM3OQCME7XA
+      aws_secret_access_key: 3WuZvG+NF+yDKSd39wa+OQpQoyTX/48y5+Vwhvf+
+      IAMRole: LDAP-Test-Role
+      ldap_password: testpassword
+      domain: example
+      count: 1
+
+
+    tasks:
+
+      - name: Create a security group
+        local_action:
+          module: ec2_group
+          name: "{{ security_group }}"
+          description: Security Group for ELK Server
+          region: "{{ region }}"
+          aws_access_key: "{{ aws_access_key }}"
+          aws_secret_key: "{{ aws_secret_access_key }}"
+          rules:
+            - proto: tcp
+              from_port: 22
+              to_port: 22
+              cidr_ip: 0.0.0.0/0
+            - proto: tcp
+              from_port: 80
+              to_port: 80
+              cidr_ip: 0.0.0.0/0
+          rules_egress:
+            - proto: all
+              cidr_ip: 0.0.0.0/0
+
+
+      - name: Launch the new EC2 Instance
+        local_action: ec2
+                      group={{ security_group }}
+                      instance_type={{ instance_type}}
+                      image={{ image }}
+                      wait=true
+                      region={{ region }}
+                      keypair={{ keypair }}
+                      count={{count}}
+        register: ec2
+      - name: Add all instance public IPs to host group
+        add_host: hostname={{ item.public_ip }} groups=ELK
+        with_items: ec2.instances
+
+
+
+      - name: Wait for SSH to come up
+        local_action: wait_for
+                      host={{ item.public_ip }}
+                      port=22
+                      state=started
+        with_items: ec2.instances
+
+      - name: Add tag to Instance(s)
+        local_action: ec2_tag resource={{ item.id }} region={{ region }} state=present
+        with_items: ec2.instances
+        args:
+          tags:
+            Name: ELK
+  - hosts: ELK
+    name: Install Packages
+    gather_facts: true
+    tasks:
+      - name: Update Packages
+        yum: name=* state=latest
+        become: true
+      - name: Add Elasticsearch Repo
+        yum_repository:
+           name: elasticsearch
+           description: ElasticSearch YUM Repo
+           file: elasticsearch_repo
+           baseurl: "http://packages.elastic.co/elasticsearch/2.x/centos"
+           gpgcheck: no
+           enabled: yes
+        become: true
+      - name: Add Kibana Repo
+        yum_repository:
+           name: Kibana
+           description: Kibana YUM Repo
+           file: kibana_repo
+           baseurl: "http://packages.elastic.co/kibana/4.4/centos"
+           gpgcheck: no
+           enabled: yes
+        become: true
+      - name: Add Logstash Repo
+        yum_repository:
+           name: Kibana
+           description: Kibana YUM Repo
+           file: kibana_repo
+           baseurl: "http://packages.elastic.co/kibana/4.4/centos"
+           gpgcheck: no
+           enabled: yes
+        become: true
+      - name: Install Elasticsearch
+        yum: name=elasticsearch state=latest
+        become: true
+      - name: Install Kibana
+        yum: name=kibana state=latest
+        become: true
+      - name: Add a string to kibana.yml
+        lineinfile: 'dest=/opt/kibana/config/kibana.yml insertafter=EOF line="server.host: 127.0.0.1" '
+        become: true
+      - name: Install Nginx
+        yum: name=nginx state=latest
+        become: true
+      - name: Install Logstash
+        yum: name=logstash state=latest
+        become: true
+      - template: src=./templates/nginx_configuration dest=/etc/nginx/conf.d/kibana.conf owner=root group=root mode=0644
+        become: true
+      - service: name=elasticsearch state=started
+        become: true
+      - service: name=kibana state=started
+        become: true
+      - service: name=nginx state=started
+        become: true
+
