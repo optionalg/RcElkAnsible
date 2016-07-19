@@ -6,17 +6,11 @@
     tags: provisioning
     vars:
       instance_type: t2.micro
-      security_group: webserver
+      security_group: Candidate-3e6a8ebe-ELK
       image: ami-6869aa05
       region: us-east-1
-      keypair: LDAP-TEST
-      aws_access_key: AKIAIQLCGEM3OQCME7XA
-      aws_secret_access_key: 3WuZvG+NF+yDKSd39wa+OQpQoyTX/48y5+Vwhvf+
-      IAMRole: LDAP-Test-Role
-      ldap_password: testpassword
-      domain: example
+      keypair: Candidate-3e6a8ebe
       count: 1
-
 
     tasks:
 
@@ -26,8 +20,6 @@
           name: "{{ security_group }}"
           description: Security Group for ELK Server
           region: "{{ region }}"
-          aws_access_key: "{{ aws_access_key }}"
-          aws_secret_key: "{{ aws_secret_access_key }}"
           rules:
             - proto: tcp
               from_port: 22
@@ -42,7 +34,7 @@
               cidr_ip: 0.0.0.0/0
 
 
-      - name: Launch the new EC2 Instance
+      - name: Launch ELK Stack
         local_action: ec2
                       group={{ security_group }}
                       instance_type={{ instance_type}}
@@ -52,13 +44,11 @@
                       keypair={{ keypair }}
                       count={{count}}
         register: ec2
-      - name: Add all instance public IPs to host group
+      - name: Add created instances to Host group ELK
         add_host: hostname={{ item.public_ip }} groups=ELK
         with_items: ec2.instances
 
-
-
-      - name: Wait for SSH to come up
+      - name: SSH wait
         local_action: wait_for
                       host={{ item.public_ip }}
                       port=22
@@ -70,7 +60,7 @@
         with_items: ec2.instances
         args:
           tags:
-            Name: ELK
+            Name: Candidate-3e6a8ebe-ELK
   - hosts: ELK
     name: Install Packages
     gather_facts: true
@@ -98,10 +88,10 @@
         become: true
       - name: Add Logstash Repo
         yum_repository:
-           name: Kibana
-           description: Kibana YUM Repo
-           file: kibana_repo
-           baseurl: "http://packages.elastic.co/kibana/4.4/centos"
+           name: Logstash
+           description: Logstash YUM Repo
+           file: logstash_repo
+           baseurl: "http://packages.elasticsearch.org/logstash/2.2/centos"
            gpgcheck: no
            enabled: yes
         become: true
@@ -128,4 +118,5 @@
         become: true
       - service: name=nginx state=started
         become: true
+
 

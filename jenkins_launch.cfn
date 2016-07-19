@@ -1,0 +1,82 @@
+{
+   "Parameters":{
+      "01VPCID":{
+         "Description":"The VPC In which the Jenkins server is created",
+         "Type":"AWS::EC2::VPC::Id"
+      },
+      "02JenkinsInstanceSize":{
+         "Description":"The instance size for the Jenkins Host",
+         "Type":"String",
+         "Default":"t2.micro",
+         "AllowedValues":[
+            "t2.micro"
+         ]
+      },
+      "04PublicIPAddress":{
+         "Description":"What is your public IP to be allowed through the Jenkins host?",
+         "Type":"String"
+      },
+      "05KeyName":{
+         "Description":"The private key to leverage for instance creation",
+         "Type":"AWS::EC2::KeyPair::KeyName"
+      }
+   },
+   "Resources":{
+      "01JenkinsSecurityGroup":{
+         "Type":"AWS::EC2::SecurityGroup",
+         "Properties":{
+            "GroupDescription":"Security Group for the Jenkins Server Host, access allowed from 04PublicIPAddress",
+            "VpcId":{
+               "Ref":"01VPCID"
+            },
+            "SecurityGroupIngress":[
+               {
+                  "IpProtocol":"tcp",
+                  "FromPort":"22",
+                  "ToPort":"22",
+                  "CidrIp":{
+                     "Ref":"04PublicIPAddress"
+                  }
+               },
+		{
+		  "IpProtocol":"tcp",
+                  "FromPort":"8080",
+		  "ToPort":"8080",
+		  "CidrIp":{
+		     "Ref":"04PublicIPAddress"
+			}
+		}
+            ],
+            "Tags":[
+               {
+                  "Key":"Name",
+                  "Value":"Candidate-3e6a8ebe-JENKINS"
+               }
+            ]
+         }
+      },
+      "03JenkinInstance":{
+         "Type":"AWS::EC2::Instance",
+         "Properties":{
+            "ImageId":"ami-ae6ce3b9",
+            "InstanceType":{
+               "Ref":"02JenkinsInstanceSize"
+            },
+            "KeyName":{
+               "Ref":"05KeyName"
+            },
+            "SecurityGroupIds":[
+               {
+                  "Ref":"01JenkinsSecurityGroup"
+               }
+            ],
+            "Tags":[
+               {
+                  "Key":"Name",
+                  "Value":"Candidate-3e6a8ebe-JENKINS"
+               }
+            ]
+         }
+      }
+   }
+}
